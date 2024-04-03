@@ -1,0 +1,91 @@
+version: '3.7'
+
+services:
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    container_name: nginx-proxy
+    ports:
+    - "80:80"
+    - "443:443"
+    networks:
+      - nginx-reverse
+    environment:
+      DHPARAM_GENERATION: "false"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./etc/nginx/certs:/etc/nginx/certs
+      - ./etc/nginx/vhost.d:/etc/nginx/vhost.d
+      - nginx_proxy_html:/usr/share/nginx/html
+  nginx-proxy-letsencrypt:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: nginx-proxy-letsencrypt
+    networks:
+    - nginx-reverse
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ./etc/nginx/certs:/etc/nginx/certs
+    - ./etc/nginx/vhost.d:/etc/nginx/vhost.d
+    - nginx_proxy_html:/usr/share/nginx/html
+    environment:
+      DEFAULT_EMAIL: ulrichnoumsi@eazytraining.fr
+      NGINX_PROXY_CONTAINER: nginx-proxy
+mysql:
+    container_name: mysql
+    image: mysql:8.0
+    volumes:
+     - mysql-data:/var/lib/mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ulrichnoumsi
+      MYSQL_DATABASE: ulrichnoumsi
+      MYSQL_USER: ulrichnoumsi
+      MYSQL_PASSWORD: ulrichnoumsi
+    networks:
+      - nginx-reverse
+  wordpress:
+    container_name: wordpress
+    image: wordpress:6.4.2-php8.1-apache
+    restart: always
+    depends_on:
+      - mysql
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      VIRTUAL_HOST: ulrichnoumsi.fr,www.ulrichnoumsi.fr
+      LETSENCRYPT_HOST: ulrichnoumsi.fr,www.ulrichnoumsi.fr
+      WORDPRESS_DB_HOST: mysql
+      WORDPRESS_DB_USER: ulrichnoumsi
+      WORDPRESS_DB_PASSWORD: ulrichnoumsi
+      WORDPRESS_DB_NAME: ulrichnoumsi
+    volumes:
+      - ./ulrichnoumsi:/var/www/html
+    networks:
+      - nginx-reverse
+
+  redis:
+    container_name: redis
+    image: 'redis:alpine'
+    restart: always
+    networks:
+      - nginx-reverse
+
+  website:
+    build: .
+    image: website:latest
+    container_name: website
+    networks:
+      - nginx-reverse
+    expose:
+      - 80
+    environment:
+      VIRTUAL_HOST: website.ulrichnoumsi.fr,www.website.ulrichnoumsi.fr
+      LETSENCRYPT_HOST: websiteulrichnoumsi.fr,www.website.ulrichnoumsi.fr
+
+
+volumes:
+    nginx_proxy_html:
+networks:
+  nginx-reverse:
+    name: nginx-reverse
+    driver: bridge
+
